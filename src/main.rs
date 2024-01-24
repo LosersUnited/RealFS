@@ -4,15 +4,16 @@ mod http_lib;
 fn main() {
     let handler = |incoming_req: http_lib::RequestDataToSet| -> http_lib::ResponseDataToSet {
         println!("got request");
-        let mut method: &str = "GET";
-        let mut path: &str = "/";
-        for http_method in http_lib::COMMON_HTTP_METHODS {
-            if incoming_req.method_and_path.starts_with(http_method) {
-                method = &incoming_req.method_and_path[..http_method.chars().count()].trim_end();
-                path = &incoming_req.method_and_path[http_method.chars().count()..].trim_start();
-                break;
-            }
-        }
+        let mut method = "GET".to_string();
+        let mut path = "/".to_string();
+        // for http_method in http_lib::COMMON_HTTP_METHODS {
+        //     if incoming_req.method_and_path.starts_with(http_method) {
+        //         method = &incoming_req.method_and_path[..http_method.chars().count()].trim_end();
+        //         path = &incoming_req.method_and_path[http_method.chars().count()..].trim_start();
+        //         break;
+        //     }
+        // }
+        http_lib::extract_path_and_method(incoming_req.method_and_path.as_str(), &mut path, &mut method);
         println!("method: {}\npath: {}", method, path);
         for (key, value) in &incoming_req.base.headers {
             println!("header: {}: {}", key, value);
@@ -25,7 +26,8 @@ fn main() {
             code,
             msg: msg.to_string(),
         };
-        match method {
+        let method_str = method.as_str();
+        match method_str {
             "GET" => {
                 if let Ok(meta) = std::fs::metadata(format!(".{}", path)) {
                     if meta.is_dir() {

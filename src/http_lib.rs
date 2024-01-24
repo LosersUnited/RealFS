@@ -107,6 +107,16 @@ fn find_double_crlf(input: &[u8]) -> Option<usize> {
         .find(|&i| input[i..].starts_with(b"\r\n\r\n"))
 }
 
+pub fn extract_path_and_method(method_and_path: &str, path: &mut String, method: &mut String) {
+    for http_method in COMMON_HTTP_METHODS.iter() {
+        if method_and_path.starts_with(http_method) {
+            *method = method_and_path[..http_method.len()].trim_end().to_owned();
+            *path = method_and_path[http_method.len()..].trim_start().to_owned();
+            break;
+        }
+    }
+}
+
 pub fn start_server<F>(port: i32, req_handler: F)
 where
     F: Fn(RequestDataToSet) -> ResponseDataToSet + Send + 'static,
