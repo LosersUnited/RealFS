@@ -1,5 +1,8 @@
-use std::collections::HashMap;
+use case_insensitive_hashmap::CaseInsensitiveHashMap;
 mod http_lib;
+
+mod handlers;
+mod utils_lib;
 
 fn main() {
     let handler = |incoming_req: http_lib::RequestDataToSet| -> http_lib::ResponseDataToSet {
@@ -13,40 +16,44 @@ fn main() {
         //         break;
         //     }
         // }
-        http_lib::extract_path_and_method(incoming_req.method_and_path.as_str(), &mut path, &mut method);
+        http_lib::extract_path_and_method(
+            incoming_req.method_and_path.as_str(),
+            &mut path,
+            &mut method,
+        );
         println!("method: {}\npath: {}", method, path);
         for (key, value) in &incoming_req.base.headers {
             println!("header: {}: {}", key, value);
         }
         let send_error = |code: i32, msg: &str| http_lib::ResponseDataToSet {
             base: http_lib::BasicHTTPDataToSet {
-                headers: HashMap::new(),
+                headers: CaseInsensitiveHashMap::new(),
                 data: [].to_vec(),
             },
             code,
             msg: msg.to_string(),
         };
-        let method_str = method.as_str();
-        match method_str {
-            "GET" => {
-                if let Ok(meta) = std::fs::metadata(format!(".{}", path)) {
-                    if meta.is_dir() {
-                        return send_error(503, "Server error");
-                    }
-                    return http_lib::ResponseDataToSet {
-                        base: http_lib::BasicHTTPDataToSet {
-                            headers: HashMap::new(),
-                            // data: "sigma".as_bytes().to_vec(),
-                            data: std::fs::read(format!(".{}", path)).unwrap(),
-                        },
-                        code: 200,
-                        msg: "OK".to_string(),
-                    };
-                }
-                send_error(404, "Not Found")
-            }
-            _ => send_error(503, "Server error"),
+        // let method_str = method.as_str();
+        if path.starts_with(handlers::read::BASE) && method == handlers::read::METHOD {
+            return handlers::read::handle_read(
+                incoming_req,
+                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
+            );
         }
+        if path.starts_with(handlers::list::BASE) && method == handlers::list::METHOD {
+            return handlers::list::handle_list(
+                incoming_req,
+                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
+            );
+        }
+        if path.starts_with(handlers::write::BASE) && method == handlers::write::METHOD {
+            return handlers::write::handle_write(
+                incoming_req,
+                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
+            );
+        }
+        send_error(500, "Server error")
     };
-    http_lib::start_server(8080, handler);
+    // http_lib::start_server(8080, handler);
+    http_lib::start_server(2137, handler);
 }

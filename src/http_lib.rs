@@ -1,9 +1,11 @@
-use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 extern crate chrono;
+use case_insensitive_hashmap::CaseInsensitiveHashMap;
 use chrono::{DateTime, Utc};
+
+use crate::utils_lib::index_of;
 
 fn format_current_date() -> String {
     let current_utc_datetime: DateTime<Utc> = Utc::now();
@@ -19,7 +21,7 @@ fn construct_http_response(additional_data: ResponseDataToSet) -> Vec<u8> {
     // fn construct_http_response(additional_data: RequestDataToSet) -> String {
     let http_header = format!("HTTP/1.1 {} {}", additional_data.code, additional_data.msg);
     let date = format_current_date();
-    let mut headers: HashMap<String, String> = HashMap::new();
+    let mut headers: CaseInsensitiveHashMap<String> = CaseInsensitiveHashMap::new();
     if !additional_data.base.headers.is_empty() {
         headers.extend(additional_data.base.headers);
     }
@@ -47,7 +49,7 @@ fn construct_http_response(additional_data: ResponseDataToSet) -> Vec<u8> {
 }
 
 pub struct BasicHTTPDataToSet {
-    pub headers: HashMap<String, String>,
+    pub headers: case_insensitive_hashmap::CaseInsensitiveHashMap<String>,
     pub data: Vec<u8>,
 }
 
@@ -88,17 +90,6 @@ fn extract_line(vec_bytes: &[u8], line_number: usize) -> Option<&[u8]> {
     None
 }
 
-fn index_of(haystack: &str, needle: &str) -> Option<usize> {
-    let haystack_len = haystack.len();
-    let needle_len = needle.len();
-
-    if needle_len == 0 {
-        return Some(0);
-    }
-
-    (0..=(haystack_len - needle_len)).find(|&i| &haystack[i..(i + needle_len)] == needle)
-}
-
 fn find_double_crlf(input: &[u8]) -> Option<usize> {
     input
         .iter()
@@ -111,17 +102,37 @@ pub fn extract_path_and_method(method_and_path: &str, path: &mut String, method:
     for http_method in COMMON_HTTP_METHODS.iter() {
         if method_and_path.starts_with(http_method) {
             *method = method_and_path[..http_method.len()].trim_end().to_owned();
-            *path = method_and_path[http_method.len()..].trim_start().to_owned();
+            // *path = method_and_path[http_method.len()..].trim_start().to_owned();
+            // println!("{}, {}",http_method, method_and_path.strip_prefix(http_method).is_none());
+            // *method = method_and_path.strip_suffix(http_method).unwrap().trim_end().to_owned();
+            *path = method_and_path
+                .strip_prefix(http_method)
+                .unwrap()
+                .trim_start()
+                .to_owned();
             break;
         }
     }
+}
+
+pub fn parse_search_options(query: &str) -> Vec<(&str, &str)> {
+    query
+        .split('&')
+        .flat_map(|pair| {
+            let mut iter = pair.splitn(2, '=');
+            let key = iter.next().unwrap_or_default();
+            let value = iter.next().unwrap_or_default();
+            Some((key, value))
+        })
+        .collect()
 }
 
 pub fn start_server<F>(port: i32, req_handler: F)
 where
     F: Fn(RequestDataToSet) -> ResponseDataToSet + Send + 'static,
 {
-    let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
+    // let listener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
     let req_handler = std::sync::Arc::new(std::sync::Mutex::new(req_handler));
 
     println!("Server listening on http://127.0.0.1:{}", port);
@@ -143,7 +154,8 @@ where
                         let first_line_as_string = String::from_utf8_lossy(first_line);
                         let binding = String::from_utf8_lossy(headers_very_raw);
                         let headers_raw = binding.split("\r\n");
-                        let mut headers: HashMap<String, String> = HashMap::new();
+                        let mut headers: CaseInsensitiveHashMap<String> =
+                            CaseInsensitiveHashMap::new();
                         for header in headers_raw {
                             let split_point = index_of(header, ":");
                             if split_point.is_none() {
@@ -154,13 +166,16 @@ where
                                 header[split_point.unwrap() + 1..].trim_start().to_string(),
                             );
                         }
+                        let mut sent_data_very_raw = data_very_raw.1.to_vec();
+                        sent_data_very_raw.drain(0..4); // removing the double crlf
+                        // dbg!(data_very_raw.1);
                         let incoming = RequestDataToSet {
                             method_and_path: first_line_as_string
                                 [..index_of(&first_line_as_string, " HTTP").unwrap()]
                                 .to_string(),
                             base: BasicHTTPDataToSet {
                                 headers,
-                                data: data_very_raw.1.to_vec(),
+                                data: sent_data_very_raw,
                             },
                         };
                         let guard = req_handler.lock().unwrap();
