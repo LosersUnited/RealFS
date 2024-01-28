@@ -1,3 +1,4 @@
+pub mod errors;
 pub mod list;
 pub mod read;
 pub mod write;

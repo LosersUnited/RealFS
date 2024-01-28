@@ -43,7 +43,7 @@ pub fn handle_write(
         }
         literal_path = value.to_string();
     }
-    let mut error_reason = "OK";
+    let mut error_reason = crate::handlers::errors::OK;
     let mut response = Vec::new();
     if !literal_path.is_empty() {
         if literal_path.starts_with('.') {
@@ -73,9 +73,9 @@ pub fn handle_write(
         //     error_reason = "Out of scope or doesn't exist or is a dir";
         // }
         if !super::is_path_within_mount_point(joined_path_buf, mount_point) {
-            error_reason = "Out of scope";
+            error_reason = crate::handlers::errors::OUT_OF_FS;
         } else if meta.is_ok() && meta.unwrap().is_dir() {
-            error_reason = "Is a dir";
+            error_reason = crate::handlers::errors::IS_DIR;
         } else {
             let mut res = std::fs::File::options()
                 .read(true)
@@ -88,14 +88,14 @@ pub fn handle_write(
                         // println!("error, good");
                         res = std::fs::File::create(joined_path_buf);
                         if res.is_err() {
-                            error_reason = "File didn't exist, creation caused errors";
+                            error_reason = crate::handlers::errors::CREATION_ERROR;
                         } else {
                             everything_fine = true;
                         }
                     }
                 }
                 if !everything_fine {
-                    error_reason = "Open error";
+                    error_reason = crate::handlers::errors::OPEN_ERROR;
                 }
             } else {
                 // println!("how did we get here");
@@ -116,20 +116,24 @@ pub fn handle_write(
                 dbg!(&buffer_copy);
                 let res2 = res.unwrap().write_all(buffer_copy.as_slice());
                 if res2.is_err() {
-                    error_reason = "Write error";
+                    error_reason = crate::handlers::errors::WRITE_ERROR;
                 }
                 response.extend(format!("{}", buffer_copy.len()).as_bytes());
             }
         }
     } else {
-        error_reason = "No input";
+        error_reason = crate::handlers::errors::NO_INPUT;
     }
     crate::http_lib::ResponseDataToSet {
         base: crate::http_lib::BasicHTTPDataToSet {
             headers: CaseInsensitiveHashMap::new(),
             data: response,
         },
-        code: if error_reason == "OK" { 200 } else { 400 },
+        code: if error_reason == crate::handlers::errors::OK {
+            200
+        } else {
+            400
+        },
         msg: error_reason.to_string(),
     }
 }

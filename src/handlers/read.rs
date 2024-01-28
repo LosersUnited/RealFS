@@ -41,7 +41,7 @@ pub fn handle_read(
         }
         literal_path = value.to_string();
     }
-    let mut error_reason = "OK";
+    let mut error_reason = crate::handlers::errors::OK;
     let mut final_data = [].to_vec();
     if !literal_path.is_empty() {
         if literal_path.starts_with('.') {
@@ -51,23 +51,30 @@ pub fn handle_read(
         let joined_path_buf =
             &std::path::PathBuf::from(mount_point).join(format!(".{}", literal_path));
         let meta = std::fs::metadata(joined_path_buf);
-        if meta.is_ok()
-            && meta.unwrap().is_file()
-            && super::is_path_within_mount_point(joined_path_buf, mount_point)
-        {
-            final_data.extend(std::fs::read(joined_path_buf).unwrap().to_vec());
+        if meta.is_ok() {
+            if !meta.unwrap().is_file() {
+                error_reason = crate::handlers::errors::IS_DIR;
+            } else if !super::is_path_within_mount_point(joined_path_buf, mount_point) {
+                error_reason = crate::handlers::errors::OUT_OF_FS;
+            } else {
+                final_data.extend(std::fs::read(joined_path_buf).unwrap().to_vec());
+            }
         } else {
-            error_reason = "Out of scope or doesn't exist or is a dir";
+            error_reason = crate::handlers::errors::GENERAL_FAILURE;
         }
     } else {
-        error_reason = "No input";
+        error_reason = crate::handlers::errors::NO_INPUT;
     }
     crate::http_lib::ResponseDataToSet {
         base: crate::http_lib::BasicHTTPDataToSet {
             headers: CaseInsensitiveHashMap::new(),
             data: final_data,
         },
-        code: if error_reason == "OK" { 200 } else { 400 },
+        code: if error_reason == crate::handlers::errors::OK {
+            200
+        } else {
+            400
+        },
         msg: error_reason.to_string(),
     }
 }
