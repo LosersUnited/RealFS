@@ -56,21 +56,22 @@ pub fn handle_list(
                 error_reason = "Is a file";
             } else if !super::is_path_within_mount_point(joined_path_buf, mount_point) {
                 error_reason = "Out of scope";
-            }
-            final_data.extend(
-                std::fs::read_dir(joined_path_buf)
-                    .unwrap()
-                    .filter_map(|entry| {
-                        entry.ok().and_then(|e| {
-                            let path = e.path();
-                            path.file_name().and_then(|n| n.to_str().map(String::from))
+            } else {
+                final_data.extend(
+                    std::fs::read_dir(joined_path_buf)
+                        .unwrap()
+                        .filter_map(|entry| {
+                            entry.ok().and_then(|e| {
+                                let path = e.path();
+                                path.file_name().and_then(|n| n.to_str().map(String::from))
+                            })
                         })
-                    })
-                    .collect::<Vec<String>>()
-                    .join("\n")
-                    .as_bytes()
-                    .to_vec(),
-            );
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                        .as_bytes()
+                        .to_vec(),
+                );
+            }
         } else {
             error_reason = "Meta call failed";
         }
