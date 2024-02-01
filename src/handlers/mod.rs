@@ -23,3 +23,8 @@ pub fn is_path_within_mount_point(path: &std::path::Path, mount_point: &str) -> 
     dbg!(&canonical_path);
     canonical_path.starts_with(canonical_mount_point)
 }
+pub fn all_origins() -> case_insensitive_hashmap::CaseInsensitiveHashMap<String> {
+    let mut ret = case_insensitive_hashmap::CaseInsensitiveHashMap::new();
+    ret.insert("Access-Control-Allow-Origin", "*".to_string());
+    ret
+}

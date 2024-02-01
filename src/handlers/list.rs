@@ -80,7 +80,7 @@ pub fn handle_list(
     }
     crate::http_lib::ResponseDataToSet {
         base: crate::http_lib::BasicHTTPDataToSet {
-            headers: CaseInsensitiveHashMap::new(),
+            headers: super::all_origins(), // very unsafe, TODO
             data: final_data,
         },
         code: if error_reason == crate::handlers::errors::OK {

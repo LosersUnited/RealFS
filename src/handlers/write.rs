@@ -126,7 +126,7 @@ pub fn handle_write(
     }
     crate::http_lib::ResponseDataToSet {
         base: crate::http_lib::BasicHTTPDataToSet {
-            headers: CaseInsensitiveHashMap::new(),
+            headers: super::all_origins(), // very unsafe, TODO
             data: response,
         },
         code: if error_reason == crate::handlers::errors::OK {
