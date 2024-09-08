@@ -1,30 +1,27 @@
-use crate::utils_lib::{self, index_of};
+use std::io::Write;
+
+use bytes::BufMut;
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
+use may_minihttp::{Request, Response};
 use percent_encoding::percent_decode_str;
+
+use crate::utils_lib::{self, index_of};
 
 pub static BASE: &str = "/api/stat";
 pub static METHOD: &str = "GET";
 pub fn handle_stat(
-    incoming_req: crate::http_lib::RequestDataToSet,
+    incoming_req: Request,
     mount_point: &str,
-) -> crate::http_lib::ResponseDataToSet {
-    let mut method = "GET".to_string();
-    let mut path = "/".to_string();
-    crate::http_lib::extract_path_and_method(
-        incoming_req.method_and_path.as_str(),
-        &mut path,
-        &mut method,
-    );
+    response: &mut Response,
+) -> std::io::Result<()> {
+    let mut method = incoming_req.method();
+    let mut path = incoming_req.path();
+    response.header("Access-Control-Allow-Origin: *");
+
     let search_pos_opt = index_of(&path, "?");
     if search_pos_opt.is_none() {
-        return crate::http_lib::ResponseDataToSet {
-            base: crate::http_lib::BasicHTTPDataToSet {
-                headers: CaseInsensitiveHashMap::new(),
-                data: "wrong".as_bytes().to_vec(),
-            },
-            code: 500,
-            msg: "Server error".to_string(),
-        };
+        response.status_code(500, "Server error");
+        return Ok(());
     }
     let search_pos = search_pos_opt.unwrap();
     let search = &path[search_pos..];
@@ -42,7 +39,7 @@ pub fn handle_stat(
         literal_path = percent_decode_str(value).decode_utf8().unwrap().to_string();
     }
     let mut error_reason = crate::handlers::errors::OK;
-    let mut final_data = Vec::new();
+    // let mut final_data = Vec::new();
     if !literal_path.is_empty() {
         if literal_path.starts_with('.') {
             // idk if there is any side effect of this...
@@ -114,7 +111,10 @@ pub fn handle_stat(
                 out_raw.insert("ctime", true_creation_time.to_string());
                 out_raw.insert("mtime", true_modification_time.to_string());
                 out_raw.insert("atime", true_access_time.to_string());
-                final_data.extend(utils_lib::create_options(out_raw).as_bytes());
+                let mut w = response.body_mut().writer();
+                // final_data.extend(utils_lib::create_options(out_raw).as_bytes());
+                w.write_all(utils_lib::create_options(out_raw).as_bytes())?;
+                return Ok(());
             }
         } else {
             error_reason = crate::handlers::errors::GENERAL_FAILURE;
@@ -122,16 +122,6 @@ pub fn handle_stat(
     } else {
         error_reason = crate::handlers::errors::NO_INPUT;
     }
-    crate::http_lib::ResponseDataToSet {
-        base: crate::http_lib::BasicHTTPDataToSet {
-            headers: super::all_origins(), // very unsafe, TODO
-            data: final_data,
-        },
-        code: if error_reason == crate::handlers::errors::OK {
-            200
-        } else {
-            400
-        },
-        msg: error_reason.to_string(),
-    }
+    response.status_code(400, error_reason);
+    Ok(())
 }
