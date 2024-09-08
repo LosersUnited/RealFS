@@ -21,10 +21,10 @@ fn main() {
             &mut path,
             &mut method,
         );
-        println!("method: {}\npath: {}", method, path);
-        for (key, value) in &incoming_req.base.headers {
-            println!("header: {}: {}", key, value);
-        }
+        // println!("method: {}\npath: {}", method, path);
+        // for (key, value) in &incoming_req.base.headers {
+        //     println!("header: {}: {}", key, value);
+        // }
         let send_error = |code: i32, msg: &str| http_lib::ResponseDataToSet {
             base: http_lib::BasicHTTPDataToSet {
                 headers: CaseInsensitiveHashMap::new(),
@@ -48,6 +48,12 @@ fn main() {
         }
         if path.starts_with(handlers::write::BASE) && method == handlers::write::METHOD {
             return handlers::write::handle_write(
+                incoming_req,
+                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
+            );
+        }
+        if path.starts_with(handlers::stat::BASE) && method == handlers::stat::METHOD {
+            return handlers::stat::handle_stat(
                 incoming_req,
                 (std::env::args().collect::<Vec<String>>()[1]).as_str(),
             );

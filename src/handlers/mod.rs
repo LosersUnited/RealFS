@@ -2,6 +2,7 @@ pub mod errors;
 pub mod list;
 pub mod read;
 pub mod write;
+pub mod stat;
 
 fn custom_canonicalize(path: &std::path::Path) -> std::path::PathBuf {
     let mut canonical_path = std::path::PathBuf::new();
@@ -20,7 +21,7 @@ fn custom_canonicalize(path: &std::path::Path) -> std::path::PathBuf {
 pub fn is_path_within_mount_point(path: &std::path::Path, mount_point: &str) -> bool {
     let canonical_mount_point = std::fs::canonicalize(mount_point).unwrap();
     let canonical_path = custom_canonicalize(path);
-    dbg!(&canonical_path);
+    // dbg!(&canonical_path);
     canonical_path.starts_with(canonical_mount_point)
 }
 pub fn all_origins() -> case_insensitive_hashmap::CaseInsensitiveHashMap<String> {

@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
+use percent_encoding::percent_decode_str;
 
 use crate::utils_lib::index_of;
 
@@ -41,7 +42,7 @@ pub fn handle_write(
         if key != "path" {
             continue;
         }
-        literal_path = value.to_string();
+        literal_path = percent_decode_str(value).decode_utf8().unwrap().to_string();
     }
     let mut error_reason = crate::handlers::errors::OK;
     let mut response = Vec::new();
@@ -113,12 +114,12 @@ pub fn handle_write(
                         .parse::<usize>()
                         .unwrap(),
                 );
-                dbg!(&buffer_copy);
+                // dbg!(&buffer_copy);
                 let res2 = res.unwrap().write_all(buffer_copy.as_slice());
                 if res2.is_err() {
                     error_reason = crate::handlers::errors::WRITE_ERROR;
                 }
-                response.extend(format!("{}", buffer_copy.len()).as_bytes());
+                // response.extend(format!("{}", buffer_copy.len()).as_bytes());
             }
         }
     } else {

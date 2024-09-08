@@ -65,8 +65,27 @@ pub struct RequestDataToSet {
 }
 #[allow(clippy::unused_io_amount)]
 fn handle_client(mut stream: TcpStream, handle_request: impl Fn(Vec<u8>) -> ResponseDataToSet) {
-    let mut buffer = [0u8; 4096];
-    stream.read(&mut buffer).unwrap();
+    // let mut buffer = [0u8; 16384];
+    // stream.read(&mut buffer).unwrap();
+    // /*
+    let mut buffer = Vec::new();
+    stream.set_read_timeout(Some(std::time::Duration::new(5, 0))).unwrap();
+    loop {
+        // temporary solution before I think of any better, one of my ideas is: read a chunk -> hope it contains headers -> find content length -> read until content length is hit
+        let mut temp_buffer = [0; 16384];
+        println!("reading");
+        let bytes_read = match stream.read(&mut temp_buffer) {
+            Ok(0) => break, // End of stream
+            Ok(n) => n,
+            Err(e) => {
+                println!("Error reading from stream: {}", e);
+                break;
+            }
+        };
+        println!("done, read {} bytes", bytes_read);
+        buffer.extend_from_slice(&temp_buffer[..bytes_read]);
+    }
+    // */
     // stream.read_exact(&mut buffer).unwrap();
     let data = handle_request(buffer.to_vec());
     let response = construct_http_response(data);
@@ -168,7 +187,7 @@ where
                         }
                         let mut sent_data_very_raw = data_very_raw.1.to_vec();
                         sent_data_very_raw.drain(0..4); // removing the double crlf
-                        // dbg!(data_very_raw.1);
+                                                        // dbg!(data_very_raw.1);
                         let incoming = RequestDataToSet {
                             method_and_path: first_line_as_string
                                 [..index_of(&first_line_as_string, " HTTP").unwrap()]

@@ -1,4 +1,5 @@
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
+use percent_encoding::percent_decode_str;
 
 use crate::utils_lib::index_of;
 
@@ -39,7 +40,7 @@ pub fn handle_read(
         if key != "path" {
             continue;
         }
-        literal_path = value.to_string();
+        literal_path = percent_decode_str(value).decode_utf8().unwrap().to_string();
     }
     let mut error_reason = crate::handlers::errors::OK;
     let mut final_data = [].to_vec();
