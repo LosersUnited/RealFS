@@ -17,6 +17,13 @@ impl HttpService for RealFS {
                 res,
             );
         }
+        if path.starts_with(handlers::list::BASE) && method == handlers::list::METHOD {
+            return handlers::list::handle_list(
+                req,
+                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
+                res,
+            );
+        }
         Ok(())
     }
 }
