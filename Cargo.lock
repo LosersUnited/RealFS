@@ -280,8 +280,7 @@ dependencies = [
 [[package]]
 name = "may_minihttp"
 version = "0.1.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca64382a01dd43e2668edc11f9d81971e693d0c53771dd79bf6dcc26aac41cbd"
+source = "git+https://github.com/Xudong-Huang/may_minihttp?rev=e35c93cce95fbbb143c5ec3cb26ca1e0cc9308a7#e35c93cce95fbbb143c5ec3cb26ca1e0cc9308a7"
 dependencies = [
  "bytes",
  "httparse",
@@ -404,6 +403,7 @@ dependencies = [
  "bytes",
  "case_insensitive_hashmap",
  "chrono",
+ "may",
  "may_minihttp",
  "percent-encoding",
 ]

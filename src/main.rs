@@ -8,6 +8,7 @@ struct RealFS;
 
 impl HttpService for RealFS {
     fn call(&mut self, req: Request, res: &mut Response) -> io::Result<()> {
+        res.header("Access-Control-Allow-Origin: *");
         let path = req.path();
         let method = req.method();
         if path.starts_with(handlers::read::BASE) && method == handlers::read::METHOD {
@@ -31,11 +32,19 @@ impl HttpService for RealFS {
                 res,
             );
         }
+        if path.starts_with(handlers::write::BASE) && method == handlers::write::METHOD {
+            return handlers::write::handle_write(
+                req,
+                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
+                res,
+            );
+        }
         Ok(())
     }
 }
 
 fn main() {
+    may::config().set_stack_size(4096*2);
     let server = HttpServer(RealFS).start("0.0.0.0:2137").unwrap();
     server.join().unwrap();
 }

@@ -1,6 +1,9 @@
-use std::io::Write;
+// use core::slice::SlicePattern;
+use std::io::{Read, Write};
 
+use bytes::BufMut;
 use case_insensitive_hashmap::CaseInsensitiveHashMap;
+use may_minihttp::{Request, Response};
 use percent_encoding::percent_decode_str;
 
 use crate::utils_lib::index_of;
@@ -8,26 +11,18 @@ use crate::utils_lib::index_of;
 pub static BASE: &str = "/api/file";
 pub static METHOD: &str = "POST";
 pub fn handle_write(
-    incoming_req: crate::http_lib::RequestDataToSet,
+    incoming_req: Request,
     mount_point: &str,
-) -> crate::http_lib::ResponseDataToSet {
-    let mut method = "GET".to_string();
-    let mut path = "/".to_string();
-    crate::http_lib::extract_path_and_method(
-        incoming_req.method_and_path.as_str(),
-        &mut path,
-        &mut method,
-    );
+    response: &mut Response,
+) -> std::io::Result<()> {
+    let mut method = incoming_req.method();
+    let mut path = incoming_req.path();
+    response.header("Access-Control-Allow-Origin: *");
+
     let search_pos_opt = index_of(&path, "?");
     if search_pos_opt.is_none() {
-        return crate::http_lib::ResponseDataToSet {
-            base: crate::http_lib::BasicHTTPDataToSet {
-                headers: CaseInsensitiveHashMap::new(),
-                data: "wrong".as_bytes().to_vec(),
-            },
-            code: 500,
-            msg: "Server error".to_string(),
-        };
+        response.status_code(500, "Server error");
+        return Ok(());
     }
     let search_pos = search_pos_opt.unwrap();
     let search = &path[search_pos..];
@@ -45,14 +40,14 @@ pub fn handle_write(
         literal_path = percent_decode_str(value).decode_utf8().unwrap().to_string();
     }
     let mut error_reason = crate::handlers::errors::OK;
-    let mut response = Vec::new();
+    // let mut response_body = Vec::new();
     if !literal_path.is_empty() {
         if literal_path.starts_with('.') {
             // idk if there is any side effect of this...
             literal_path = literal_path[1..].to_string();
         }
         let joined_path_buf =
-            &std::path::PathBuf::from(mount_point).join(format!(".{}", literal_path));
+            &std::path::PathBuf::from(mount_point).join(format!("./{}", literal_path));
         dbg!(joined_path_buf);
         let meta = std::fs::metadata(joined_path_buf);
         // if meta.is_err() {
@@ -103,38 +98,45 @@ pub fn handle_write(
                 everything_fine = true;
             }
             if everything_fine {
-                let mut buffer_copy = incoming_req.base.data.clone();
-                crate::utils_lib::truncate_buffer(
-                    &mut buffer_copy,
-                    incoming_req
-                        .base
-                        .headers
-                        .get("Content-Length")
-                        .unwrap()
-                        .parse::<usize>()
-                        .unwrap(),
-                );
-                // dbg!(&buffer_copy);
-                let res2 = res.unwrap().write_all(buffer_copy.as_slice());
-                if res2.is_err() {
-                    error_reason = crate::handlers::errors::WRITE_ERROR;
+                let mut req_body = incoming_req.body();
+                let mut file = res.unwrap();
+                // let mut buffer = [0u8; 1024];
+                let mut buffer = [0u8; 4096];
+                loop {
+                    let read_result = req_body.read(&mut buffer);
+                    if read_result.is_err() {
+                        error_reason = crate::handlers::errors::WRITE_ERROR;
+                        break;
+                    }
+                    let bytes_read = read_result.ok().unwrap();
+                    if bytes_read == 0 {
+                        break;
+                    }
+                    let res2 = file.write_all(&buffer[..bytes_read]);
+                    if res2.is_err() {
+                        error_reason = crate::handlers::errors::WRITE_ERROR;
+                    }
                 }
+                let truncate_result = file.set_len(req_body.body_limit() as u64);
+                if truncate_result.is_err() {
+                    error_reason = crate::handlers::errors::TRUNCATE_ERROR;
+                }
+                // let mut buf = Vec::new();
+                // let read_result = req_body.read_to_end(&mut buf);
+                // if read_result.is_err() {
+                //     error_reason = crate::handlers::errors::WRITE_ERROR;
+                // }
+                // file.write_all(buf.as_slice());
+                file.flush()?;
+                // let res2 = res.unwrap().write_all();
                 // response.extend(format!("{}", buffer_copy.len()).as_bytes());
+                response.body(error_reason);
+                return Ok(());
             }
         }
     } else {
         error_reason = crate::handlers::errors::NO_INPUT;
     }
-    crate::http_lib::ResponseDataToSet {
-        base: crate::http_lib::BasicHTTPDataToSet {
-            headers: super::all_origins(), // very unsafe, TODO
-            data: response,
-        },
-        code: if error_reason == crate::handlers::errors::OK {
-            200
-        } else {
-            400
-        },
-        msg: error_reason.to_string(),
-    }
+    response.status_code(400, error_reason);
+    Ok(())
 }
