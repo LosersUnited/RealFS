@@ -52,6 +52,6 @@ pub fn get_mode(meta: &std::fs::Metadata) -> u32 {
 }
 
 #[cfg(not(unix))]
-pub fn get_mode(_: &fs::Metadata) -> u32 {
+pub fn get_mode(_: &std::fs::Metadata) -> u32 {
     fake_mode()
 }
