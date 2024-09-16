@@ -22,11 +22,13 @@ jobs:
         name: RealFS-linux-x86_64
         path: ./target/release/realfs
     - name: Add Windows build target
-      run: rustup target add x86_64-pc-windows-gnu
+      run: |
+        sudo apt-get install -y mingw-w64
+        rustup target add x86_64-pc-windows-gnu
     - name: Build Windows x86_64
       run: cargo build --target x86_64-pc-windows-gnu --release --verbose
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@5d5d22a31266ced268874388b861e4b58bb5c2f3
       with:
         name: RealFS-windows-x86_64
-        path: ./target/release/RealFS.exe
+        path: ./target/x86_64-pc-windows-gnu/release/realfs.exe
