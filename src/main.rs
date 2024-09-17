@@ -1,65 +1,46 @@
-use case_insensitive_hashmap::CaseInsensitiveHashMap;
-mod http_lib;
-
+use may_minihttp::{HttpServer, HttpService, Request, Response};
+use std::io;
 mod handlers;
+mod http_lib;
 mod utils_lib;
+#[derive(Clone)]
+struct RealFS;
 
-fn main() {
-    let handler = |incoming_req: http_lib::RequestDataToSet| -> http_lib::ResponseDataToSet {
-        println!("got request");
-        let mut method = "GET".to_string();
-        let mut path = "/".to_string();
-        // for http_method in http_lib::COMMON_HTTP_METHODS {
-        //     if incoming_req.method_and_path.starts_with(http_method) {
-        //         method = &incoming_req.method_and_path[..http_method.chars().count()].trim_end();
-        //         path = &incoming_req.method_and_path[http_method.chars().count()..].trim_start();
-        //         break;
-        //     }
-        // }
-        http_lib::extract_path_and_method(
-            incoming_req.method_and_path.as_str(),
-            &mut path,
-            &mut method,
-        );
-        // println!("method: {}\npath: {}", method, path);
-        // for (key, value) in &incoming_req.base.headers {
-        //     println!("header: {}: {}", key, value);
-        // }
-        let send_error = |code: i32, msg: &str| http_lib::ResponseDataToSet {
-            base: http_lib::BasicHTTPDataToSet {
-                headers: CaseInsensitiveHashMap::new(),
-                data: [].to_vec(),
-            },
-            code,
-            msg: msg.to_string(),
-        };
-        // let method_str = method.as_str();
+static mut MNT: &str = "";
+
+impl HttpService for RealFS {
+    fn call(&mut self, req: Request, res: &mut Response) -> io::Result<()> {
+        // res.header("Access-Control-Allow-Origin: *");
+        // dbg!(unsafe { MNT });
+        let path = req.path();
+        let method = req.method();
         if path.starts_with(handlers::read::BASE) && method == handlers::read::METHOD {
-            return handlers::read::handle_read(
-                incoming_req,
-                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
-            );
+            return handlers::read::handle_read(req, unsafe { MNT }, res);
         }
         if path.starts_with(handlers::list::BASE) && method == handlers::list::METHOD {
-            return handlers::list::handle_list(
-                incoming_req,
-                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
-            );
-        }
-        if path.starts_with(handlers::write::BASE) && method == handlers::write::METHOD {
-            return handlers::write::handle_write(
-                incoming_req,
-                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
-            );
+            return handlers::list::handle_list(req, unsafe { MNT }, res);
         }
         if path.starts_with(handlers::stat::BASE) && method == handlers::stat::METHOD {
-            return handlers::stat::handle_stat(
-                incoming_req,
-                (std::env::args().collect::<Vec<String>>()[1]).as_str(),
-            );
+            return handlers::stat::handle_stat(req, unsafe { MNT }, res);
         }
-        send_error(500, "Server error")
+        if path.starts_with(handlers::write::BASE) && method == handlers::write::METHOD {
+            return handlers::write::handle_write(req, unsafe { MNT }, res);
+        }
+        Ok(())
+    }
+}
+
+fn main() {
+    may::config().set_stack_size(4096 * 2);
+    unsafe {
+        let t = Box::into_raw(Box::new(std::env::args().collect::<Vec<String>>()));
+        let target = t.as_ref().unwrap().get(1).unwrap();
+        println!("{target}");
+        let target_raw = String::from(target);
+        let target_raw2 = Box::into_raw(Box::new(target_raw));
+        MNT = target_raw2.as_ref().unwrap().as_str();
+        t.drop_in_place();
     };
-    // http_lib::start_server(8080, handler);
-    http_lib::start_server(2137, handler);
+    let server = HttpServer(RealFS).start("0.0.0.0:2137").unwrap();
+    server.join().unwrap();
 }
